@@ -73,5 +73,7 @@
 ### Assignment 3
 [Use case diagram](./Assignment/use%20case%20diagram.pdf)<br>
 [Class diagram](./Assignment/class%20diagram.pdf)
+### Assignment 4
+[GUI & CLI](./Assignment/GUI%20&%20CLI.pdf)
 
 ---
