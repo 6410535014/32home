@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'register_page.dart';
+import 'services/auth_facade.dart'; 
+import 'adapters/notification_adapter.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -10,9 +12,12 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Controller สำหรับรับค่าจาก TextField
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  
+  // เรียกใช้งาน Pattern
+  final AuthFacade _authFacade = AuthFacade();
+  final NotificationService _notification = FlutterSnackBarAdapter();
 
   @override
   void dispose() {
@@ -21,32 +26,22 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // Sign In
   Future<void> _signIn() async {
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      // ใช้ Facade ในการจัดการ Sign In
+      await _authFacade.signIn(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login Successful!')),
-        );
+        _notification.showMessage(context, 'Login Successful!'); // ใช้ Adapter
         Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
       }
     } on FirebaseAuthException catch (e) {
-      String message = 'Login failed';
-      if (e.code == 'user-not-found') {
-        message = 'No user found for that email.';
-      } else if (e.code == 'wrong-password') {
-        message = 'Wrong password provided.';
-      } else if (e.code == 'invalid-email') {
-        message = 'The email address is badly formatted.';
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      _notification.showMessage(context, e.message ?? 'Login failed');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      _notification.showMessage(context, e.toString());
     }
   }
 
@@ -55,7 +50,6 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // พื้นหลัง
           Opacity(
             opacity: 1,
             child: Container(
@@ -70,15 +64,12 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-
           SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Column(
               children: [
                 const SizedBox(height: 100),
-                // โลโก้
                 Image.asset('assets/images/logo.png', width: 500, fit: BoxFit.contain),
-                // ชื่อแอป
                 Transform.translate(
                   offset: const Offset(0, -60),
                   child: const Text(
@@ -86,28 +77,18 @@ class _LoginPageState extends State<LoginPage> {
                     style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
                   )
                 ),
-
                 Transform.translate(
                   offset: const Offset(0, -30),
                   child: Column(
                     children: [
-                      // email
                       buildInputLabel("Email"),
                       buildTextField("Enter email", controller: _emailController),
-
                       const SizedBox(height: 20),
-
-                      // password
                       buildInputLabel("Password"),
                       buildTextField("Enter password", isPassword: true, controller: _passwordController),
-
                       const SizedBox(height: 30),
-
-                      // ปุ่ม Sign In 
                       buildActionButton("Sign In", onPressed: _signIn),
                       const SizedBox(height: 15),
-                      
-                      // ปุ่ม Register
                       buildActionButton(
                         "Register",
                         backgroundColor: Colors.blue, 
@@ -126,7 +107,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Helper Label
   Widget buildInputLabel(String label) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -134,7 +114,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Helper TextField
   Widget buildTextField(String hint, {bool isPassword = false, TextEditingController? controller}) {
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -152,7 +131,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Helper ปุ่ม
   Widget buildActionButton(String text, {VoidCallback? onPressed, Color textColor = Colors.white, Color backgroundColor = Colors.black,}) {
     return SizedBox(
       width: double.infinity,

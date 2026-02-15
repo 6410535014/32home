@@ -66,17 +66,13 @@
 ---
 
 ## Assignment
-### Assignment 1
-[Concept paper](./Assignment/32Home.pdf)
-### Assignment 2
-[การแจกแจง Requirements](./Assignment/requirements.pdf)
-### Assignment 3
+[Concept paper](./Assignment/32Home.pdf)<br>
+[การแจกแจง Requirements](./Assignment/requirements.pdf)<br>
 [Use case diagram](./Assignment/use%20case%20diagram.pdf)<br>
-[Class diagram](./Assignment/class%20diagram.pdf)
-### Assignment 4
-[GUI & CLI](./Assignment/GUI%20&%20CLI.pdf)
-### Assignment 5
+[Class diagram](./Assignment/class%20diagram.pdf)<br>
+[GUI & CLI](./Assignment/GUI%20&%20CLI.pdf)<br>
 [ทบทวน Requirents](./Assignment/review%20requirements.pdf)<br>
-[Facade](./Assignment/facade.pdf)
+[Facade](./Assignment/facade.pdf)<br>
+[Facade และ Adapter pattern (หน้า login และ register)](https://www.canva.com/design/DAHBawn1erA/tgOI25SOpiM43fJHHfuotA/edit?utm_content=DAHBawn1erA&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
 
 ---
