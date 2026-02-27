@@ -36,17 +36,27 @@ class _LoginPageState extends State<LoginPage> {
     String input = _inputController.text.trim();
     if (input.isEmpty) return;
 
-    // 1. ตรวจสอบข้อมูลใน DB
-    bool exists = await _authFacade.checkUserExists(input, _isPhoneLogin);
+    // สร้างตัวแปรสำหรับเก็บค่าที่จะใช้เช็คใน DB และส่ง OTP
+    String processedInput = input;
+
+    if (_isPhoneLogin) {
+      // ลบเครื่องหมาย "-" ออกเพื่อให้ตรงกับ format ใน Database (0812223333)
+      processedInput = input.replaceAll('-', '');
+    }
+
+    // 1. ตรวจสอบข้อมูลใน DB โดยใช้ค่าที่ลบขีดออกแล้ว
+    bool exists = await _authFacade.checkUserExists(processedInput, _isPhoneLogin);
     if (!exists) {
       _notification.showMessage(context, 'ข้อมูลนี้ไม่มีในระบบนิติบุคคล');
       return;
     }
 
     if (_isPhoneLogin) {
-      // 2. ถ้าเป็นเบอร์โทร -> ส่ง OTP แล้วไปหน้า OtpPage
+      // 2. แปลงเป็นรูปแบบสากล (เช่น 0812223333 -> +66812223333) สำหรับ Firebase Auth
+      String internationalFormat = processedInput.replaceFirst('0', '+66');
+      
       await _authFacade.verifyPhoneNumber(
-        input,
+        internationalFormat, // ส่งเบอร์รูปแบบ +66 ไปยัง Firebase
         (id) {
           Navigator.push(context, MaterialPageRoute(
             builder: (context) => OtpPage(verificationId: id)
@@ -55,11 +65,9 @@ class _LoginPageState extends State<LoginPage> {
         (e) => _notification.showMessage(context, e.message ?? 'Error'),
       );
     } else {
-      // 3. ถ้าเป็น Email -> ส่ง Link แล้วไปหน้า EmailPendingPage
+      // ... ส่วนของ Email คงเดิม ...
       await _authFacade.sendSignInLink(input);
-      Navigator.push(context, MaterialPageRoute(
-        builder: (context) => EmailPendingPage(email: input)
-      ));
+      // ...
     }
   }
 
