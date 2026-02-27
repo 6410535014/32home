@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'register_page.dart';
 import 'services/auth_facade.dart'; 
 import 'adapters/notification_adapter.dart';
 
@@ -68,17 +67,36 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Column(
               children: [
-                const SizedBox(height: 100),
-                Image.asset('assets/images/logo.png', width: 500, fit: BoxFit.contain),
+                Image.asset('assets/images/logo.png', width: 1000, fit: BoxFit.contain),
                 Transform.translate(
-                  offset: const Offset(0, -60),
-                  child: const Text(
-                    '32Home',
-                    style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
-                  )
+                  offset: const Offset(0, -150),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '32',
+                          style: TextStyle(
+                            fontSize: 40, 
+                            fontWeight: FontWeight.bold, 
+                            color: Color(0xFF135a76), // เปลี่ยนสีที่ต้องการตรงนี้
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'Home',
+                          style: TextStyle(
+                            fontSize: 40, 
+                            fontWeight: FontWeight.bold, 
+                            color: Color(0xFFba5a2d), // สีเดิมของคุณ
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 Transform.translate(
-                  offset: const Offset(0, -30),
+                  offset: const Offset(0, -130),
                   child: Column(
                     children: [
                       buildInputLabel("Email"),
@@ -87,15 +105,7 @@ class _LoginPageState extends State<LoginPage> {
                       buildInputLabel("Password"),
                       buildTextField("Enter password", isPassword: true, controller: _passwordController),
                       const SizedBox(height: 30),
-                      buildActionButton("Sign In", onPressed: _signIn),
-                      const SizedBox(height: 15),
-                      buildActionButton(
-                        "Register",
-                        backgroundColor: Colors.blue, 
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterPage()));
-                        }, 
-                      ),
+                      buildActionButton("Sign In",backgroundColor: Colors.blue, onPressed: _signIn),
                     ],
                   ),
                 ),
