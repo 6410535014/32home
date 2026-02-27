@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:three_two_home/email_pending_page.dart';
 import 'package:three_two_home/otp_page.dart';
 import 'package:three_two_home/utils/phone_number_formatter.dart';
 import 'services/auth_facade.dart';
@@ -14,73 +13,50 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _inputController = TextEditingController();
-  final TextEditingController _otpController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   
   final AuthFacade _authFacade = AuthFacade();
   final NotificationService _notification = FlutterSnackBarAdapter();
 
-  bool _isPhoneLogin = true; // สลับโหมด Phone/Email
-  String? _verificationId;   // เก็บ ID สำหรับ OTP
-  bool _otpSent = false;     // ตรวจสอบว่าส่ง OTP หรือยัง
-
   @override
   void dispose() {
-    _inputController.dispose();
-    _otpController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
-  // จัดการการส่งข้อมูล (OTP หรือ Email Link)
-  Future<void> _handleInitialAction() async {
-    String input = _inputController.text.trim();
-    if (input.isEmpty) return;
+  // จัดการการส่งข้อมูล OTP
+  Future<void> _handleGetOTP() async {
+    // ดึงค่าจาก Controller และตัดเครื่องหมาย '-' ออก 
+    // เพื่อให้เหลือแต่ตัวเลข (เช่น 0812223333) สำหรับเช็คใน Firestore
+    String phoneInput = _phoneController.text.trim().replaceAll('-', ''); 
+    
+    if (phoneInput.isEmpty) return;
 
-    // สร้างตัวแปรสำหรับเก็บค่าที่จะใช้เช็คใน DB และส่ง OTP
-    String processedInput = input;
-
-    if (_isPhoneLogin) {
-      // ลบเครื่องหมาย "-" ออกเพื่อให้ตรงกับ format ใน Database (0812223333)
-      processedInput = input.replaceAll('-', '');
-    }
-
-    // 1. ตรวจสอบข้อมูลใน DB โดยใช้ค่าที่ลบขีดออกแล้ว
-    bool exists = await _authFacade.checkUserExists(processedInput, _isPhoneLogin);
+    
+    // ตรวจสอบข้อมูลเบอร์โทรศัพท์ในระบบ Firestore
+    // ใช้ค่า phoneInput ที่ตัดขีดออกแล้วเพื่อค้นหา 'phone' ใน DB
+    bool exists = await _authFacade.checkUserExists(phoneInput);
     if (!exists) {
-      _notification.showMessage(context, 'ข้อมูลนี้ไม่มีในระบบนิติบุคคล');
+      if (mounted) {
+        _notification.showMessage(context, 'เบอร์โทรศัพท์นี้ไม่มีในระบบนิติบุคคล');
+      }
       return;
     }
 
-    if (_isPhoneLogin) {
-      // 2. แปลงเป็นรูปแบบสากล (เช่น 0812223333 -> +66812223333) สำหรับ Firebase Auth
-      String internationalFormat = processedInput.replaceFirst('0', '+66');
-      
-      await _authFacade.verifyPhoneNumber(
-        internationalFormat, // ส่งเบอร์รูปแบบ +66 ไปยัง Firebase
-        (id) {
-          Navigator.push(context, MaterialPageRoute(
+    // ส่ง OTP 
+    // ส่งค่า phoneInput เข้าไป ซึ่งข้างใน verifyPhoneNumber จะจัดการแปลงเป็น +66 ให้เอง
+    await _authFacade.verifyPhoneNumber(
+      phoneInput,
+      (id) {
+        Navigator.push(
+          context, 
+          MaterialPageRoute(
             builder: (context) => OtpPage(verificationId: id)
-          ));
-        },
-        (e) => _notification.showMessage(context, e.message ?? 'Error'),
-      );
-    } else {
-      // ... ส่วนของ Email คงเดิม ...
-      await _authFacade.sendSignInLink(input);
-      // ...
-    }
-  }
-
-  // ยืนยัน OTP
-  Future<void> _verifyOTP() async {
-    try {
-      await _authFacade.signInWithOTP(_verificationId!, _otpController.text.trim());
-      if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
-      }
-    } catch (e) {
-      _notification.showMessage(context, 'รหัส OTP ไม่ถูกต้อง');
-    }
+          )
+        );
+      },
+      (e) => _notification.showMessage(context, e.message ?? 'เกิดข้อผิดพลาดในการส่ง OTP'),
+    );
   }
 
   @override
@@ -88,7 +64,6 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // พื้นหลังเดิม
           Container(
             width: double.infinity,
             height: double.infinity,
@@ -96,7 +71,6 @@ class _LoginPageState extends State<LoginPage> {
               image: DecorationImage(
                 image: AssetImage('assets/images/background.jpg'),
                 fit: BoxFit.cover,
-                repeat: ImageRepeat.repeat,
               ),
             ),
           ),
@@ -104,15 +78,13 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Column(
               children: [
-                // Logo เดิม
                 Image.asset('assets/images/logo.png', width: 1000, fit: BoxFit.contain),
                 Transform.translate(
                   offset: const Offset(0, -150),
                   child: Column(
                     children: [
-                      // หัวข้อ 32Home สีเดิม
                       Text.rich(
-                        TextSpan(
+                        const TextSpan(
                           children: [
                             TextSpan(
                               text: '32',
@@ -125,61 +97,24 @@ class _LoginPageState extends State<LoginPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      
-                      // ส่วนสลับโหมด Login
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildTabButton("Phone", _isPhoneLogin, () => setState(() => _isPhoneLogin = true)),
-                          const SizedBox(width: 20),
-                          _buildTabButton("Email", !_isPhoneLogin, () => setState(() => _isPhoneLogin = false)),
-                        ],
+                      const SizedBox(height: 50),
+                      buildInputLabel("Phone Number"),
+                      buildTextField(
+                        "XXX-XXX-XXXX",
+                        controller: _phoneController,
                       ),
                       const SizedBox(height: 30),
-
-                      // ช่องกรอกข้อมูลหลัก
-                      buildInputLabel(_isPhoneLogin ? "Phone Number" : "Email Address"),
-                      buildTextField(
-                        _isPhoneLogin ? "XXX-XXX-XXXX" : "example@mail.com",
-                        controller: _inputController,
-                        enabled: !_otpSent,
-                        isPhoneNumber: _isPhoneLogin,
+                      buildActionButton(
+                        "Get OTP",
+                        backgroundColor: Colors.blue,
+                        onPressed: _handleGetOTP,
                       ),
-
-                      // ช่องกรอก OTP (แสดงเมื่อส่ง OTP แล้ว)
-                      if (_isPhoneLogin && _otpSent) ...[
-                        const SizedBox(height: 20),
-                        buildInputLabel("Enter OTP"),
-                        buildTextField("6-digit code", controller: _otpController),
-                        const SizedBox(height: 30),
-                        buildActionButton("Verify OTP", backgroundColor: Colors.blue, onPressed: _verifyOTP),
-                      ] else ...[
-                        const SizedBox(height: 30),
-                        buildActionButton(
-                          _isPhoneLogin ? "Get OTP" : "Get Link",
-                          backgroundColor: Colors.blue,
-                          onPressed: _handleInitialAction,
-                        ),
-                      ],
                     ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabButton(String text, bool isActive, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Text(text, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: isActive ? FontWeight.bold : FontWeight.normal)),
-          if (isActive) Container(margin: const EdgeInsets.only(top: 4), height: 2, width: 40, color: const Color(0xFFba5a2d)),
         ],
       ),
     );
@@ -192,27 +127,21 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget buildTextField(String hint, {
-    TextEditingController? controller, 
-    bool enabled = true,
-    bool isPhoneNumber = false, // เพิ่ม parameter ตรวจสอบว่าเป็นเบersโทรไหม
-  }) {
+  Widget buildTextField(String hint, {TextEditingController? controller}) {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
-        color: enabled ? Colors.white : Colors.grey[300], 
+        color: Colors.white, 
         borderRadius: BorderRadius.circular(8)
       ),
       child: TextField(
         controller: controller,
-        enabled: enabled,
-        // ถ้าเป็นเบอร์โทร ให้ใช้ Keyboard ตัวเลข และใส่ Formatter
-        keyboardType: isPhoneNumber ? TextInputType.number : TextInputType.text,
-        inputFormatters: isPhoneNumber ? [
-          FilteringTextInputFormatter.digitsOnly, // พิมพ์ได้เฉพาะตัวเลข
-          LengthLimitingTextInputFormatter(10),  // จำกัดแค่ 10 หลัก
-          PhoneNumberFormatter(),                // ใส่ "-" อัตโนมัติ
-        ] : [],
+        keyboardType: TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(10),
+          PhoneNumberFormatter(),
+        ],
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(color: Colors.grey),

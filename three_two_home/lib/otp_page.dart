@@ -32,7 +32,7 @@ class _OtpPageState extends State<OtpPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // ใช้ Background เดิมเพื่อให้ดีไซน์ต่อเนื่อง
+          // Background
           Container(decoration: const BoxDecoration(image: DecorationImage(image: AssetImage('assets/images/background.jpg'), fit: BoxFit.cover))),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -41,7 +41,7 @@ class _OtpPageState extends State<OtpPage> {
               children: [
                 const Text("ยืนยันรหัส OTP", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
-                const Text("กรุณากรอกรหัส 6 หลักที่ได้รับทาง SMS", style: TextStyle(color: Colors.white70, fontSize: 16)),
+                const Text("กรุณากรอกรหัส 6 หลักที่ได้รับทาง SMS", style: TextStyle(color: Color(0xFF135a76), fontSize: 16)),
                 const SizedBox(height: 30),
                 // ช่องกรอก OTP
                 Container(
@@ -51,7 +51,7 @@ class _OtpPageState extends State<OtpPage> {
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 24, letterSpacing: 10),
-                    decoration: const InputDecoration(border: InputBorder.none, hintText: "000000"),
+                    decoration: const InputDecoration(border: InputBorder.none, hintText: "XXXXXX"),
                   ),
                 ),
                 const SizedBox(height: 30),
@@ -61,12 +61,13 @@ class _OtpPageState extends State<OtpPage> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
                     onPressed: _verify,
-                    child: const Text("Verify & Login", style: TextStyle(color: Colors.white, fontSize: 18)),
+                    child: const Text("ยืนยัน", style: TextStyle(color: Colors.white, fontSize: 18)),
                   ),
                 ),
+                const SizedBox(height: 10),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("แก้ไขเบอร์โทรศัพท์", style: TextStyle(color: Colors.white)),
+                  child: const Text("ใช้เบอร์โทรศัพท์อื่น", style: TextStyle(color: Color(0xFF135a76))),
                 )
               ],
             ),

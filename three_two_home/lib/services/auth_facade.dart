@@ -5,38 +5,37 @@ class AuthFacade {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // ตรวจสอบว่ามีข้อมูลเบอร์โทรหรือ Email นี้ในระบบนิติบุคคลหรือไม่
-  Future<bool> checkUserExists(String identity, bool isPhone) async {
-    final queryField = isPhone ? 'phone' : 'email';
+  // ตรวจสอบว่ามีข้อมูลเบอร์โทรศัพท์นี้ในระบบนิติบุคคลหรือไม่
+  Future<bool> checkUserExists(String phoneNumber) async {
     final snapshot = await _firestore
         .collection('users')
-        .where(queryField, isEqualTo: identity)
+        .where('phone', isEqualTo: phoneNumber)
         .limit(1)
         .get();
     return snapshot.docs.isNotEmpty;
   }
 
-  // สำหรับ Email Login: ส่ง Link ยืนยันตัวตน
-  Future<void> sendSignInLink(String email) async {
-    var acs = ActionCodeSettings(
-      url: "https://home-5ca46.web.app/login",
-      handleCodeInApp: true,
-      androidPackageName: "com.example.three_two_home",
-      androidInstallApp: true,
-      androidMinimumVersion: "12",
-    );
-
-    await _auth.sendSignInLinkToEmail(email: email, actionCodeSettings: acs);
-  }
-
-  // สำหรับ Phone Login: ส่ง OTP
+  // ส่ง OTP
   Future<void> verifyPhoneNumber(
     String phoneNumber,
     Function(String) onCodeSent,
     Function(FirebaseAuthException) onError,
   ) async {
+    // ลบขีดออก
+    String cleanNumber = phoneNumber.replaceAll('-', '').trim();
+    
+    // ตรวจสอบและเติมรหัสประเทศ +66 (ถ้าเบอร์เริ่มด้วย 0 ให้ตัด 0 ออกแล้วเติม +66)
+    String formattedNumber;
+    if (cleanNumber.startsWith('0')) {
+      formattedNumber = '+66${cleanNumber.substring(1)}';
+    } else if (!cleanNumber.startsWith('+')) {
+      formattedNumber = '+66$cleanNumber';
+    } else {
+      formattedNumber = cleanNumber;
+    }
+
     await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
+      phoneNumber: formattedNumber, // ส่งเบอร์ที่ format เป็น +66XXXXXXXXX
       verificationCompleted: (PhoneAuthCredential credential) async {
         await _auth.signInWithCredential(credential);
       },
@@ -48,12 +47,17 @@ class AuthFacade {
     );
   }
 
-  // ยืนยัน OTP
+  // ยืนยันรหัส OTP เพื่อเข้าสู่ระบบ
   Future<void> signInWithOTP(String verificationId, String smsCode) async {
     PhoneAuthCredential credential = PhoneAuthProvider.credential(
       verificationId: verificationId,
       smsCode: smsCode,
     );
     await _auth.signInWithCredential(credential);
+  }
+
+  // ออกจากระบบ
+  Future<void> signOut() async {
+    await _auth.signOut();
   }
 }
