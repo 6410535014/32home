@@ -73,6 +73,9 @@
 [GUI & CLI](./Assignment/GUI%20&%20CLI.pdf)<br>
 [ทบทวน Requirents](./Assignment/review%20requirements.pdf)<br>
 [Facade](./Assignment/facade.pdf)<br>
-[Facade และ Adapter pattern (หน้า login และ register)](https://www.canva.com/design/DAHBawn1erA/tgOI25SOpiM43fJHHfuotA/edit?utm_content=DAHBawn1erA&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
+[Facade และ Adapter pattern (หน้า login และ register)](./Assignment/facade%20&%20adapter%20pattern.pdf)
+
+## Presentation Slide
+[กลางภาค](https://canva.link/ti40gzfqkmat0sl)
 
 ---
