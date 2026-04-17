@@ -16,7 +16,7 @@ class _DashboardPageState extends State<DashboardPage> {
   // ในอนาคตถ้าแยกไฟล์ ให้ import ไฟล์เหล่านั้นแล้วมาใส่ใน List นี้
   final List<Widget> _pages = [
     const DashboardHomeContent(), // หน้า A
-    const Center(child: Text("หน้า Feed / รายงาน (B)")), // หน้า B (ตัวอย่าง)
+    const ReportPage(), // หน้า B (ตัวอย่าง)
     const Center(child: Text("หน้าโหวต (C)")),           // หน้า C (ตัวอย่าง)
     const Center(child: Text("หน้าแจ้งเตือน (D)")),      // หน้า D (ตัวอย่าง)
   ];
@@ -119,6 +119,84 @@ class DashboardHomeContent extends StatelessWidget {
               }
               return const Text("ยินดีต้อนรับ");
             },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ReportPage extends StatelessWidget {
+  const ReportPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              "รายการการเงินทั้งหมด",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              // ดึงข้อมูลจากคอลเลกชัน transactions เรียงตามวันที่ล่าสุด
+              stream: FirebaseFirestore.instance
+                  .collection('transactions')
+                  .orderBy('date', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return const Center(child: Text("เกิดข้อผิดพลาด"));
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text("ไม่มีรายการข้อมูล"));
+                }
+
+                return ListView.builder(
+                  itemCount: snapshot.data!.docs.length,
+                  itemBuilder: (context, index) {
+                    var data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                    
+                    // จัดรูปแบบตัวเลขให้สวยงาม
+                    double amount = data['amount']?.toDouble() ?? 0.0;
+                    String formattedAmount = amount.toStringAsFixed(2).replaceAllMapped(
+                      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        // ตรวจสอบ type เพื่อเลือกสีพื้นหลัง Icon
+                        backgroundColor: data['type'] == 'income' ? Colors.green.shade100 : Colors.red.shade100,
+                        child: Icon(
+                          // เลือก Icon ที่สื่อความหมายต่างกัน
+                          data['type'] == 'income' ? Icons.call_received : Icons.call_made,
+                          color: data['type'] == 'income' ? Colors.green : Colors.red,
+                        ),
+                      ),
+                      title: Text(data['title'] ?? 'ไม่ระบุชื่อรายการ'),
+                      subtitle: Text(data['date'] != null 
+                        ? (data['date'] as Timestamp).toDate().toString().split(' ')[0] 
+                        : ''),
+                      trailing: Text(
+                        // ตรวจสอบ type เพื่อใส่เครื่องหมาย + หรือ -
+                        "${data['type'] == 'income' ? '+' : '-'} ฿$formattedAmount",
+                        style: TextStyle(
+                          // เปลี่ยนสีตัวเลขตามประเภทรายการ
+                          color: data['type'] == 'income' ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
