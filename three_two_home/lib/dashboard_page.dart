@@ -18,7 +18,7 @@ class _DashboardPageState extends State<DashboardPage> {
     const DashboardHomeContent(), // หน้า A
     const ReportPage(), // หน้า B (ตัวอย่าง)
     const VotePage(), // หน้า C (ตัวอย่าง)
-    const Center(child: Text("หน้าแจ้งเตือน (D)")),      // หน้า D (ตัวอย่าง)
+    const NotificationPage(),      // หน้า D (ตัวอย่าง)
   ];
 
   void _onItemTapped(int index) {
@@ -179,9 +179,12 @@ class ReportPage extends StatelessWidget {
                         ),
                       ),
                       title: Text(data['title'] ?? 'ไม่ระบุชื่อรายการ'),
-                      subtitle: Text(data['date'] != null 
-                        ? (data['date'] as Timestamp).toDate().toString().split(' ')[0] 
-                        : ''),
+                      subtitle: Text(
+                        data['date'] != null 
+                          ? "${(data['date'] as Timestamp).toDate().day}/${(data['date'] as Timestamp).toDate().month}/${(data['date'] as Timestamp).toDate().year}" 
+                          : '',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
                       trailing: Text(
                         // ตรวจสอบ type เพื่อใส่เครื่องหมาย + หรือ -
                         "${data['type'] == 'income' ? '+' : '-'} ฿$formattedAmount",
@@ -392,5 +395,97 @@ class VotePage extends StatelessWidget {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("บันทึกการโหวตเรียบร้อย")));
     }
+  }
+}
+
+class NotificationPage extends StatelessWidget {
+  const NotificationPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("การแจ้งเตือน"),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0.5,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        // ดึงข้อมูลแจ้งเตือน เรียงจากใหม่ล่าสุด
+        stream: FirebaseFirestore.instance
+            .collection('notifications')
+            .orderBy('timestamp', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return const Center(child: Text("เกิดข้อผิดพลาด"));
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.data!.docs.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text("ยังไม่มีการแจ้งเตือนในขณะนี้", style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              var note = snapshot.data!.docs[index];
+              DateTime time = (note['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+
+              return Column(
+                children: [
+                  ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: _getIconColor(note['title']),
+                      child: Icon(_getIcon(note['title']), color: Colors.white, size: 20),
+                    ),
+                    title: Text(
+                      note['title'],
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(note['body']),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${time.day}/${time.month}/${time.year} ${time.hour}:${time.minute.toString().padLeft(2, '0')}",
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                    isThreeLine: true,
+                  ),
+                  const Divider(height: 1),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  // กำหนดไอคอนตามหัวข้อแจ้งเตือน
+  IconData _getIcon(String title) {
+    if (title.contains("การเงิน") || title.contains("ยอดเงิน")) return Icons.account_balance_wallet;
+    if (title.contains("โหวต")) return Icons.how_to_vote;
+    return Icons.notifications;
+  }
+
+  // กำหนดสีตามหัวข้อแจ้งเตือน
+  Color _getIconColor(String title) {
+    if (title.contains("การเงิน")) return Colors.blue;
+    if (title.contains("โหวต")) return Colors.orange;
+    return Colors.grey;
   }
 }
