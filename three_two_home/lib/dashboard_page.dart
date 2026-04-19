@@ -17,7 +17,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final List<Widget> _pages = [
     const DashboardHomeContent(), // หน้า A
     const ReportPage(), // หน้า B (ตัวอย่าง)
-    const Center(child: Text("หน้าโหวต (C)")),           // หน้า C (ตัวอย่าง)
+    const VotePage(), // หน้า C (ตัวอย่าง)
     const Center(child: Text("หน้าแจ้งเตือน (D)")),      // หน้า D (ตัวอย่าง)
   ];
 
@@ -201,5 +201,196 @@ class ReportPage extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class VotePage extends StatelessWidget {
+  const VotePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? "";
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('polls').orderBy('createdAt', descending: true).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        
+        return ListView.builder(
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            var poll = snapshot.data!.docs[index];
+            DateTime endDate = (poll['endDate'] as Timestamp).toDate();
+            bool isExpired = DateTime.now().isAfter(endDate); // ตรวจสอบเวลาปิดโหวตอัตโนมัติ
+
+            return StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance.collection('polls').doc(poll.id).collection('votes').doc(currentUserId).snapshots(),
+              builder: (context, voteSnapshot) {
+                bool hasVoted = voteSnapshot.hasData && voteSnapshot.data!.exists;
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: isExpired ? Colors.grey.shade100 : (hasVoted ? Colors.blue.shade50 : Colors.white),
+                  child: ListTile(
+                    leading: Icon(
+                      isExpired ? Icons.pie_chart : (hasVoted ? Icons.check_circle : Icons.how_to_vote),
+                      color: isExpired ? Colors.grey : (hasVoted ? Colors.blue : Colors.orange),
+                    ),
+                    title: Text(poll['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(isExpired ? "ปิดโหวตแล้ว - ดูผลลัพธ์" : (hasVoted ? "คุณลงคะแนนแล้ว" : "เปิดให้โหวตถึง: ${endDate.toString().substring(0,16)}")),
+                    onTap: () {
+                      if (isExpired) {
+                        _showResultSheet(context, poll.id, poll['title']); // ดูผลลัพธ์
+                      } else if (!hasVoted) {
+                        _showVoteDialog(context, poll.id, poll['title']); // ไปโหวต
+                      }
+                    },
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ฟังก์ชันแสดงผลคะแนน (สัดส่วน)
+  void _showResultSheet(BuildContext context, String pollId, String title) async {
+    final votes = await FirebaseFirestore.instance
+        .collection('polls')
+        .doc(pollId)
+        .collection('votes')
+        .get();
+
+    int total = votes.docs.length;
+    int agree = votes.docs.where((d) => d['choice'] == 'agree').length;
+    int disagree = total - agree;
+    
+    double agreePercent = total > 0 ? (agree / total) * 100 : 0;
+    double disagreePercent = total > 0 ? (disagree / total) * 100 : 0;
+
+    if (context.mounted) {
+      showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title, 
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 30),
+              
+              // --- แท่งแสดงผลแบบแบ่งสีในแท่งเดียว ---
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  height: 20,
+                  width: double.infinity,
+                  child: total > 0 
+                    ? Row(
+                        children: [
+                          // ส่วนที่เห็นชอบ (สีเขียว)
+                          if (agree > 0)
+                            Expanded(
+                              flex: agree,
+                              child: Container(color: Colors.green),
+                            ),
+                          // ส่วนที่ไม่เห็นชอบ (สีแดง)
+                          if (disagree > 0)
+                            Expanded(
+                              flex: disagree,
+                              child: Container(color: Colors.red),
+                            ),
+                        ],
+                      )
+                    : Container(color: Colors.grey.shade300), // กรณีไม่มีคนโหวต
+                ),
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // แสดงรายละเอียดตัวเลขและ %
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("เห็นชอบ: $agree", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                      Text("${agreePercent.toStringAsFixed(1)}%", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text("ไม่เห็นชอบ: $disagree", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      Text("${disagreePercent.toStringAsFixed(1)}%", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 30),
+              Text(
+                "จำนวนผู้ลงคะแนนทั้งหมด: $total ท่าน",
+                style: const TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  void _showVoteDialog(BuildContext context, String pollId, String title) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("ยืนยันการโหวต: $title"),
+        content: const Text("เมื่อโหวตแล้วจะไม่สามารถแก้ไขคะแนนได้"),
+        actions: [
+          TextButton(
+            onPressed: () => _submitVote(context, pollId, "agree"),
+            child: const Text("เห็นชอบ", style: TextStyle(color: Colors.green)),
+          ),
+          TextButton(
+            onPressed: () => _submitVote(context, pollId, "disagree"),
+            child: const Text("ไม่เห็นชอบ", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitVote(BuildContext context, String pollId, String choice) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    final voteRef = FirebaseFirestore.instance.collection('polls').doc(pollId).collection('votes').doc(userId);
+    
+    // ตรวจสอบว่าเคยโหวตหรือยัง
+    final doc = await voteRef.get();
+    if (doc.exists) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("คุณได้ลงคะแนนไปแล้ว")));
+      }
+      return;
+    }
+
+    await voteRef.set({'choice': choice, 'timestamp': FieldValue.serverTimestamp()});
+    if (context.mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("บันทึกการโหวตเรียบร้อย")));
+    }
   }
 }
