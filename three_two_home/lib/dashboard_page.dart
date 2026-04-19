@@ -33,9 +33,16 @@ class _DashboardPageState extends State<DashboardPage> {
       appBar: AppBar(
         title: const Text("32Home", style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          // ค้นหาส่วนนี้ใน lib/dashboard_page.dart
           IconButton(
             icon: const Icon(Icons.account_circle, size: 30),
-            onPressed: () => debugPrint("Go to Profile Page"),
+            onPressed: () {
+              // แก้ไขให้กดแล้วไปหน้า Profile
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfilePage()),
+              );
+            },
           ),
         ],
       ),
@@ -487,5 +494,58 @@ class NotificationPage extends StatelessWidget {
     if (title.contains("การเงิน")) return Colors.blue;
     if (title.contains("โหวต")) return Colors.orange;
     return Colors.grey;
+  }
+}
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("โปรไฟล์"),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0.5,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 1. รูป Icon Profile
+            const CircleAvatar(
+              radius: 60,
+              backgroundColor: Colors.black,
+              child: Icon(
+                Icons.person,
+                size: 80,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 60), // ระยะห่างระหว่างรูปกับปุ่ม
+
+            // 2. ปุ่ม Logout
+            ElevatedButton.icon(
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                if (context.mounted) {
+                  // กลับไปหน้าแรก (Login) และล้าง Stack ทั้งหมด
+                  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                }
+              },
+              icon: const Icon(Icons.logout),
+              label: const Text("ออกจากระบบ"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
