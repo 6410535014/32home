@@ -360,8 +360,6 @@ class VotePage extends StatelessWidget {
       final double proposedBudget = (data['budget'] ?? 0).toDouble();
       final double balanceAtStart = (data['balanceAtStart'] ?? 0).toDouble();
       final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? "";
-
-      final accountDoc = await FirebaseFirestore.instance.collection('central_data').doc('account_info').get();
       
       int agreeCount = 0;
       int totalCount = 0;
@@ -381,7 +379,6 @@ class VotePage extends StatelessWidget {
 
       if (!context.mounted) return;
 
-      final double currentBalance = accountDoc.data()?['total_balance'] ?? 0.0;
       final formatter = NumberFormat('#,###.##');
       int disagreeCount = totalCount - agreeCount;
 
@@ -526,99 +523,6 @@ class VotePage extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  // 2. หน้าสรุปผล (แสดงแบบแท่งเดียวแบ่งสีเหมือนเดิม แต่เพิ่มข้อมูลงบประมาณ)
-  void _showResultSheet(BuildContext context, DocumentSnapshot poll) async {
-    final String title = poll['title'] ?? 'ไม่มีหัวข้อ';
-    final votes = await FirebaseFirestore.instance.collection('polls').doc(poll.id).collection('votes').get();
-
-    int total = votes.docs.length;
-    int agree = votes.docs.where((d) => d['choice'] == 'agree').length;
-    int disagree = total - agree;
-    
-    double agreePercent = total > 0 ? (agree / total) * 100 : 0;
-    double disagreePercent = total > 0 ? (disagree / total) * 100 : 0;
-
-    if (context.mounted) {
-      showModalBottomSheet(
-        context: context,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (context) => Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title, 
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 30),
-              
-              // --- แท่งแสดงผลแบบแบ่งสีในแท่งเดียว ---
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  height: 20,
-                  width: double.infinity,
-                  child: total > 0 
-                    ? Row(
-                        children: [
-                          // ส่วนที่เห็นชอบ (สีเขียว)
-                          if (agree > 0)
-                            Expanded(
-                              flex: agree,
-                              child: Container(color: Colors.green),
-                            ),
-                          // ส่วนที่ไม่เห็นชอบ (สีแดง)
-                          if (disagree > 0)
-                            Expanded(
-                              flex: disagree,
-                              child: Container(color: Colors.red),
-                            ),
-                        ],
-                      )
-                    : Container(color: Colors.grey.shade300), // กรณีไม่มีคนโหวต
-                ),
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // แสดงรายละเอียดตัวเลขและ %
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("เห็นชอบ: $agree", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                      Text("${agreePercent.toStringAsFixed(1)}%", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text("ไม่เห็นชอบ: $disagree", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                      Text("${disagreePercent.toStringAsFixed(1)}%", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 30),
-              Text(
-                "จำนวนผู้ลงคะแนนทั้งหมด: $total ท่าน",
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        ),
-      );
-    }
   }
 
   Future<void> _submitVote(BuildContext context, String pollId, String choice) async {
