@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -177,36 +178,83 @@ class ReportPage extends StatelessWidget {
 
                     return ListTile(
                       leading: CircleAvatar(
-                        // ตรวจสอบ type เพื่อเลือกสีพื้นหลัง Icon
                         backgroundColor: data['type'] == 'income' ? Colors.green.shade100 : Colors.red.shade100,
                         child: Icon(
-                          // เลือก Icon ที่สื่อความหมายต่างกัน
                           data['type'] == 'income' ? Icons.call_received : Icons.call_made,
                           color: data['type'] == 'income' ? Colors.green : Colors.red,
                         ),
                       ),
                       title: Text(data['title'] ?? 'ไม่ระบุชื่อรายการ'),
-                      subtitle: Text(
-                        data['date'] != null 
-                          ? "${(data['date'] as Timestamp).toDate().day}/${(data['date'] as Timestamp).toDate().month}/${(data['date'] as Timestamp).toDate().year}" 
-                          : '',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(data['date'] != null 
+                            ? (data['date'] as Timestamp).toDate().toString().split(' ')[0] 
+                            : ''),
+                          // แสดงข้อความ "มีหลักฐานแนบ" หากมีลิงก์
+                          if (data['evidenceUrl'] != null && data['evidenceUrl'].toString().isNotEmpty)
+                            const Text("📄 มีหลักฐานแนบ", style: TextStyle(color: Colors.blue, fontSize: 12)),
+                        ],
                       ),
-                      trailing: Text(
-                        // ตรวจสอบ type เพื่อใส่เครื่องหมาย + หรือ -
-                        "${data['type'] == 'income' ? '+' : '-'} ฿$formattedAmount",
-                        style: TextStyle(
-                          // เปลี่ยนสีตัวเลขตามประเภทรายการ
-                          color: data['type'] == 'income' ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16
-                        ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min, // สำคัญ: เพื่อให้ Row ไม่กินพื้นที่เต็มหน้าจอ
+                        children: [
+                          Text(
+                            "${data['type'] == 'income' ? '+' : '-'} ฿$formattedAmount",
+                            style: TextStyle(
+                              color: data['type'] == 'income' ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          // ปุ่มดูหลักฐาน (จะแสดงเฉพาะเมื่อมีลิงก์)
+                          if (data['evidenceUrl'] != null && data['evidenceUrl'].toString().isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.receipt_long, color: Colors.blueAccent),
+                              onPressed: () async {
+                                final String urlString = data['evidenceUrl'] ?? "";
+                                if (urlString.isNotEmpty) {
+                                  final Uri url = Uri.parse(urlString);
+                                  
+                                  // ตรวจสอบว่าสามารถเปิดลิงก์ได้หรือไม่
+                                  if (await canLaunchUrl(url)) {
+                                    await launchUrl(
+                                      url,
+                                      mode: LaunchMode.externalApplication, // เปิดด้วย Browser นอกแอปเพื่อความเสถียร
+                                    );
+                                  } else {
+                                    // แจ้งเตือนถ้าลิงก์ผิดปกติ
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text("ไม่สามารถเปิดลิงก์ได้")),
+                                      );
+                                    }
+                                  }
+                                }
+                              },
+                            ),
+                        ],
                       ),
                     );
                   },
                 );
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEvidenceDialog(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("หลักฐานการทำรายการ"),
+        content: SelectableText(url, style: const TextStyle(color: Colors.blue)), // ให้ผู้ใช้ก๊อปปี้ลิงก์ได้
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("ปิด"),
           ),
         ],
       ),
