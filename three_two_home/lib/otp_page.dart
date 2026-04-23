@@ -41,7 +41,7 @@ class _OtpPageState extends State<OtpPage> {
               children: [
                 const Text("ยืนยันรหัส OTP", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
-                const Text("กรุณากรอกรหัส 6 หลักที่ได้รับทาง SMS", style: TextStyle(color: Color(0xFF135a76), fontSize: 16)),
+                const Text("กรอกรหัสที่ได้รับทาง SMS", style: TextStyle(color: Color(0xFF135a76), fontSize: 16)),
                 const SizedBox(height: 30),
                 // ช่องกรอก OTP
                 Container(

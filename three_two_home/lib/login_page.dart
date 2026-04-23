@@ -18,6 +18,8 @@ class _LoginPageState extends State<LoginPage> {
   final AuthFacade _authFacade = AuthFacade();
   final NotificationService _notification = FlutterSnackBarAdapter();
 
+  bool _isLoading = false;
+
   @override
   void dispose() {
     _phoneController.dispose();
@@ -26,96 +28,109 @@ class _LoginPageState extends State<LoginPage> {
 
   // จัดการการส่งข้อมูล OTP
   Future<void> _handleGetOTP() async {
-    // ดึงค่าจาก Controller และตัดเครื่องหมาย '-' ออก 
-    // เพื่อให้เหลือแต่ตัวเลข (เช่น 0812223333) สำหรับเช็คใน Firestore
     String phoneInput = _phoneController.text.trim().replaceAll('-', ''); 
     
     if (phoneInput.isEmpty) return;
-
     
+    setState(() {
+      _isLoading = true;
+    });
+
     // ตรวจสอบข้อมูลเบอร์โทรศัพท์ในระบบ Firestore
-    // ใช้ค่า phoneInput ที่ตัดขีดออกแล้วเพื่อค้นหา 'phone' ใน DB
     bool exists = await _authFacade.checkUserExists(phoneInput);
+    
     if (!exists) {
-      if (mounted) {
-        _notification.showMessage(context, 'เบอร์โทรศัพท์นี้ไม่มีในระบบนิติบุคคล');
-      }
+      // 1. เพิ่มบรรทัดนี้ เพื่อรีเซ็ตสถานะกรณีไม่พบเบอร์ในระบบ
+      setState(() => _isLoading = false); 
+      _notification.showMessage(context, 'เบอร์โทรศัพท์นี้ไม่มีในระบบนิติบุคคล');
       return;
     }
 
-    // ส่ง OTP 
-    // ส่งค่า phoneInput เข้าไป ซึ่งข้างใน verifyPhoneNumber จะจัดการแปลงเป็น +66 ให้เอง
+    // ส่ง OTP
     await _authFacade.verifyPhoneNumber(
       phoneInput,
-      (id) {
-        Navigator.push(
-          context, 
+      (verificationId) async {
+        // 2. เพิ่มบรรทัดนี้ เพื่อให้เมื่อกลับมาจากหน้า OTP สถานะปุ่มจะกลับมาปกติ
+        setState(() => _isLoading = false);
+
+        await Navigator.push(
+          context,
           MaterialPageRoute(
-            builder: (context) => OtpPage(verificationId: id)
-          )
+            builder: (context) => OtpPage(verificationId: verificationId),
+          ),
         );
       },
-      (e) => _notification.showMessage(context, e.message ?? 'เกิดข้อผิดพลาดในการส่ง OTP'),
+      (e) {
+        // 3. เพิ่มบรรทัดนี้ เพื่อรีเซ็ตสถานะกรณีเกิด Error จาก Firebase
+        setState(() => _isLoading = false);
+        _notification.showMessage(context, 'Error');
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/background.jpg'),
-                fit: BoxFit.cover,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Stack(
+          children: [
+            // 1. ลายพื้นหลัง (คงเดิม)
+            Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/images/background.jpg'),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-          ),
-          SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Column(
-              children: [
-                Image.asset('assets/images/logo.png', width: 1000, fit: BoxFit.contain),
-                Transform.translate(
-                  offset: const Offset(0, -150),
+            // 2. เนื้อหาหลัก
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text.rich(
-                        const TextSpan(
-                          children: [
-                            TextSpan(
-                              text: '32',
-                              style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF135a76), letterSpacing: 2),
+                      // ปรับขนาด Logo ให้ใหญ่ขึ้นเป็น 250 (หรือปรับตามความเหมาะสม)
+                      // และลบส่วน Text("32Home") ออกแล้ว
+                      Image.asset('assets/images/logo.png', width: 250),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // ส่วน Input (เบอร์โทรศัพท์)
+                      buildTextField(
+                        "เบอร์โทรศัพท์", 
+                        controller: _phoneController
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // ปุ่มรับรหัส OTP
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _handleGetOTP,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            TextSpan(
-                              text: 'Home',
-                              style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFFba5a2d), letterSpacing: 2),
-                            ),
-                          ],
+                          ),
+                          child: _isLoading
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                            : const Text("รับรหัส OTP", style: TextStyle(fontSize: 18, color: Colors.white),),
                         ),
                       ),
-                      const SizedBox(height: 50),
-                      buildInputLabel("Phone Number"),
-                      buildTextField(
-                        "XXX-XXX-XXXX",
-                        controller: _phoneController,
-                      ),
-                      const SizedBox(height: 30),
-                      buildActionButton(
-                        "Get OTP",
-                        backgroundColor: Colors.blue,
-                        onPressed: _handleGetOTP,
-                      ),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
