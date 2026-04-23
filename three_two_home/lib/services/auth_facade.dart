@@ -5,13 +5,27 @@ class AuthFacade {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // ฟังก์ชันกลางสำหรับแปลงเบอร์โทรศัพท์จาก 08... เป็น +668... เพื่อให้ตรงกับในฐานข้อมูล
+  String formatToE164(String phoneNumber) {
+    String cleanNumber = phoneNumber.replaceAll('-', '').trim();
+    if (cleanNumber.startsWith('0')) {
+      return '+66${cleanNumber.substring(1)}';
+    } else if (!cleanNumber.startsWith('+')) {
+      return '+66$cleanNumber';
+    }
+    return cleanNumber;
+  }
+
   // ตรวจสอบว่ามีข้อมูลเบอร์โทรศัพท์นี้ในระบบนิติบุคคลหรือไม่
   Future<bool> checkUserExists(String phoneNumber) async {
+    String formattedPhone = formatToE164(phoneNumber); // แปลงก่อนดึง
+    
     final snapshot = await _firestore
         .collection('users')
-        .where('phone', isEqualTo: phoneNumber)
+        .where('phone', isEqualTo: formattedPhone)
         .limit(1)
         .get();
+        
     return snapshot.docs.isNotEmpty;
   }
 
@@ -21,21 +35,10 @@ class AuthFacade {
     Function(String) onCodeSent,
     Function(FirebaseAuthException) onError,
   ) async {
-    // ลบขีดออก
-    String cleanNumber = phoneNumber.replaceAll('-', '').trim();
-    
-    // ตรวจสอบและเติมรหัสประเทศ +66 (ถ้าเบอร์เริ่มด้วย 0 ให้ตัด 0 ออกแล้วเติม +66)
-    String formattedNumber;
-    if (cleanNumber.startsWith('0')) {
-      formattedNumber = '+66${cleanNumber.substring(1)}';
-    } else if (!cleanNumber.startsWith('+')) {
-      formattedNumber = '+66$cleanNumber';
-    } else {
-      formattedNumber = cleanNumber;
-    }
+    String formattedNumber = formatToE164(phoneNumber); // แปลงก่อนส่งไป Firebase Auth
 
     await _auth.verifyPhoneNumber(
-      phoneNumber: formattedNumber, // ส่งเบอร์ที่ format เป็น +66XXXXXXXXX
+      phoneNumber: formattedNumber,
       verificationCompleted: (PhoneAuthCredential credential) async {
         await _auth.signInWithCredential(credential);
       },

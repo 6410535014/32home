@@ -138,9 +138,8 @@ class _LoginPageState extends State<LoginPage> {
         controller: controller,
         keyboardType: TextInputType.number,
         inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(10),
-          PhoneNumberFormatter(),
+          // ใช้แค่ PhoneNumberFormatter ก็เพียงพอ เพราะจัดการทั้งกรองตัวเลขและจำกัดความยาวแล้ว
+          PhoneNumberFormatter(), 
         ],
         decoration: InputDecoration(
           hintText: hint,

@@ -75,15 +75,13 @@ class DashboardHomeContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Text(
-            "ยอดเงินคงเหลือในบัญชีส่วนกลาง", // ปรับชื่อให้ชัดเจน
-            style: TextStyle(fontSize: 18, color: Colors.grey),
+            "ยอดเงินคงเหลือในบัญชีส่วนกลาง",
+            style: TextStyle(fontSize: 18, color: Colors.black),
           ),
           const SizedBox(height: 10),
 
@@ -111,7 +109,7 @@ class DashboardHomeContent extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 48, 
                   fontWeight: FontWeight.bold, 
-                  color: Colors.blueAccent
+                  color: Colors.green
                 ),
               );
             },
@@ -120,15 +118,7 @@ class DashboardHomeContent extends StatelessWidget {
           const SizedBox(height: 20),
           
           // --- ส่วนดึงชื่อ User (คงเดิม) ---
-          FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('users').doc(user?.uid).get(),
-            builder: (context, snapshot) {
-              if (snapshot.hasData && snapshot.data!.exists) {
-                return Text("ยินดีต้อนรับคุณ: ${snapshot.data!['username']}");
-              }
-              return const Text("ยินดีต้อนรับ");
-            },
-          ),
+
         ],
       ),
     );
@@ -140,6 +130,8 @@ class ReportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return Scaffold(
       body: Column(
         children: [
@@ -151,90 +143,88 @@ class ReportPage extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              // ดึงข้อมูลจากคอลเลกชัน transactions เรียงตามวันที่ล่าสุด
-              stream: FirebaseFirestore.instance
-                  .collection('transactions')
-                  .orderBy('date', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) return const Center(child: Text("เกิดข้อผิดพลาด"));
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            child: FutureBuilder<DocumentSnapshot>(
+              // 1. ดึงข้อมูล Profile ของ User ครั้งเดียวก่อนเพื่อเอาวันสร้าง account
+              future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+              builder: (context, userSnapshot) {
+                if (!userSnapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-                if (snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("ไม่มีรายการข้อมูล"));
-                }
+                // ดึงค่า createdAt (ถ้าไม่มีให้ใช้เวลาปัจจุบัน เพื่อความปลอดภัยไม่ให้เห็นข้อมูลเก่า)
+                Timestamp userCreatedAt = userSnapshot.data?['createdAt'] ?? Timestamp.now();
 
-                return ListView.builder(
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                    
-                    // จัดรูปแบบตัวเลขให้สวยงาม
-                    double amount = data['amount']?.toDouble() ?? 0.0;
-                    String formattedAmount = amount.toStringAsFixed(2).replaceAllMapped(
-                      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+                return StreamBuilder<QuerySnapshot>(
+                  // 2. ใช้ .where กรองรายการที่ 'date' >= วันที่สร้าง account
+                  // และต้อง .orderBy ฟิลด์เดียวกับที่กรอง (date) เพื่อให้ Query ทำงานได้
+                  stream: FirebaseFirestore.instance
+                      .collection('transactions')
+                      .where('date', isGreaterThanOrEqualTo: userCreatedAt)
+                      .orderBy('date', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) return const Center(child: Text("เกิดข้อผิดพลาด"));
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: data['type'] == 'income' ? Colors.green.shade100 : Colors.red.shade100,
-                        child: Icon(
-                          data['type'] == 'income' ? Icons.call_received : Icons.call_made,
-                          color: data['type'] == 'income' ? Colors.green : Colors.red,
-                        ),
-                      ),
-                      title: Text(data['title'] ?? 'ไม่ระบุชื่อรายการ'),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(data['date'] != null 
-                            ? (data['date'] as Timestamp).toDate().toString().split(' ')[0] 
-                            : ''),
-                          // แสดงข้อความ "มีหลักฐานแนบ" หากมีลิงก์
-                          if (data['evidenceUrl'] != null && data['evidenceUrl'].toString().isNotEmpty)
-                            const Text("📄 มีหลักฐานแนบ", style: TextStyle(color: Colors.blue, fontSize: 12)),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min, // สำคัญ: เพื่อให้ Row ไม่กินพื้นที่เต็มหน้าจอ
-                        children: [
-                          Text(
-                            "${data['type'] == 'income' ? '+' : '-'} ฿$formattedAmount",
-                            style: TextStyle(
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text("ไม่มีรายการข้อมูล"));
+                    }
+
+                    return ListView.builder(
+                      itemCount: snapshot.data!.docs.length,
+                      itemBuilder: (context, index) {
+                        var data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                        
+                        double amount = data['amount']?.toDouble() ?? 0.0;
+                        String formattedAmount = amount.toStringAsFixed(2).replaceAllMapped(
+                          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: data['type'] == 'income' ? Colors.green.shade100 : Colors.red.shade100,
+                            child: Icon(
+                              data['type'] == 'income' ? Icons.call_received : Icons.call_made,
                               color: data['type'] == 'income' ? Colors.green : Colors.red,
-                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          // ปุ่มดูหลักฐาน (จะแสดงเฉพาะเมื่อมีลิงก์)
-                          if (data['evidenceUrl'] != null && data['evidenceUrl'].toString().isNotEmpty)
-                            IconButton(
-                              icon: const Icon(Icons.receipt_long, color: Colors.blueAccent),
-                              onPressed: () async {
-                                final String urlString = data['evidenceUrl'] ?? "";
-                                if (urlString.isNotEmpty) {
-                                  final Uri url = Uri.parse(urlString);
-                                  
-                                  // ตรวจสอบว่าสามารถเปิดลิงก์ได้หรือไม่
-                                  if (await canLaunchUrl(url)) {
-                                    await launchUrl(
-                                      url,
-                                      mode: LaunchMode.externalApplication, // เปิดด้วย Browser นอกแอปเพื่อความเสถียร
-                                    );
-                                  } else {
-                                    // แจ้งเตือนถ้าลิงก์ผิดปกติ
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text("ไม่สามารถเปิดลิงก์ได้")),
-                                      );
+                          title: Text(data['title'] ?? 'ไม่ระบุชื่อรายการ'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(data['date'] != null 
+                                ? (data['date'] as Timestamp).toDate().toString().split(' ')[0] 
+                                : ''),
+                              if (data['evidenceUrl'] != null && data['evidenceUrl'].toString().isNotEmpty)
+                                const Text("📄 มีหลักฐานแนบ", style: TextStyle(color: Colors.blue, fontSize: 12)),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "${data['type'] == 'income' ? '+' : '-'} ฿$formattedAmount",
+                                style: TextStyle(
+                                  color: data['type'] == 'income' ? Colors.green : Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (data['evidenceUrl'] != null && data['evidenceUrl'].toString().isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(Icons.receipt_long, color: Colors.blueAccent),
+                                  onPressed: () async {
+                                    final String urlString = data['evidenceUrl'] ?? "";
+                                    if (urlString.isNotEmpty) {
+                                      final Uri url = Uri.parse(urlString);
+                                      if (await canLaunchUrl(url)) {
+                                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                                      }
                                     }
-                                  }
-                                }
-                              },
-                            ),
-                        ],
-                      ),
+                                  },
+                                ),
+                            ],
+                          ),
+                        );
+                      },
                     );
                   },
                 );
@@ -255,91 +245,87 @@ class VotePage extends StatelessWidget {
     final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? "";
     final DateFormat formatter = DateFormat('dd/MM/yyyy HH:mm');
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('polls')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+    return FutureBuilder<DocumentSnapshot>(
+      // 1. ดึงวันสร้าง Account ของ User
+      future: FirebaseFirestore.instance.collection('users').doc(currentUserId).get(),
+      builder: (context, userSnapshot) {
+        if (!userSnapshot.hasData) return const Center(child: CircularProgressIndicator());
+        
+        Timestamp userCreatedAt = userSnapshot.data?['createdAt'] ?? Timestamp.now();
 
-        return ListView.builder(
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, index) {
-            var poll = snapshot.data!.docs[index];
-            DateTime endDate = (poll['endDate'] as Timestamp).toDate();
-            bool isExpired = DateTime.now().isAfter(endDate);
+        return StreamBuilder<QuerySnapshot>(
+          // 2. กรอง Poll ที่สร้างหลัง User สมัครเท่านั้น
+          stream: FirebaseFirestore.instance
+              .collection('polls')
+              .where('createdAt', isGreaterThanOrEqualTo: userCreatedAt)
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+            if (snapshot.data!.docs.isEmpty) return const Center(child: Text("ยังไม่มีรายการโหวตสำหรับคุณ"));
 
-            return StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('polls')
-                  .doc(poll.id)
-                  .collection('votes')
-                  .doc(currentUserId)
-                  .snapshots(),
-              builder: (context, voteSnapshot) {
-                bool hasVoted = voteSnapshot.hasData && voteSnapshot.data!.exists;
+            return ListView.builder(
+              itemCount: snapshot.data!.docs.length,
+              itemBuilder: (context, index) {
+                var poll = snapshot.data!.docs[index];
+                DateTime endDate = (poll['endDate'] as Timestamp).toDate();
+                bool isExpired = DateTime.now().isAfter(endDate);
 
-                // --- กำหนดข้อความสถานะ ---
-                String statusText = "";
-                Color statusColor = Colors.grey;
+                return StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('polls')
+                      .doc(poll.id)
+                      .collection('votes')
+                      .doc(currentUserId)
+                      .snapshots(),
+                  builder: (context, voteSnapshot) {
+                    bool hasVoted = voteSnapshot.hasData && voteSnapshot.data!.exists;
 
-                if (isExpired) {
-                  if (hasVoted) {
-                    statusText = "ปิดโหวตแล้ว - คลิกดูผลสรุป";
-                    statusColor = Colors.purple;
-                  } else {
-                    statusText = "ปิดโหวตแล้ว - ไม่ได้ลงคะแนน"; // กรณีลืมลงคะแนน
-                    statusColor = Colors.redAccent;
-                  }
-                } else {
-                  if (hasVoted) {
-                    statusText = "ลงคะแนนเรียบร้อยแล้ว";
-                    statusColor = Colors.green;
-                  } else {
-                    statusText = "เปิดให้ลงคะแนน";
-                    statusColor = Colors.orange;
-                  }
-                }
+                    String statusText = "";
+                    Color statusColor = Colors.grey;
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: ListTile(
-                    leading: Icon(
-                      isExpired 
-                        ? (hasVoted ? Icons.analytics : Icons.event_busy) 
-                        : (hasVoted ? Icons.check_circle : Icons.pending_actions),
-                      color: statusColor,
-                      size: 32,
-                    ),
-                    title: Text(
-                      poll['title'],
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        // 1. แสดงวันที่ปิดโหวต
-                        Text(
-                          "ปิดโหวตเมื่อ: ${formatter.format(endDate)}",
-                          style: const TextStyle(fontSize: 13, color: Colors.black87),
+                    if (isExpired) {
+                      statusText = hasVoted ? "ปิดโหวตแล้ว - คลิกดูผลสรุป" : "ปิดโหวตแล้ว - ไม่ได้ลงคะแนน";
+                      statusColor = hasVoted ? Colors.purple : Colors.redAccent;
+                    } else {
+                      statusText = hasVoted ? "ลงคะแนนเรียบร้อยแล้ว" : "เปิดให้ลงคะแนน";
+                      statusColor = hasVoted ? Colors.green : Colors.orange;
+                    }
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: ListTile(
+                        leading: Icon(
+                          isExpired 
+                            ? (hasVoted ? Icons.analytics : Icons.event_busy) 
+                            : (hasVoted ? Icons.check_circle : Icons.pending_actions),
+                          color: statusColor,
+                          size: 32,
                         ),
-                        // 2. แสดงสถานะ (รวมกรณีไม่ได้โหวต)
-                        Text(
-                          statusText,
-                          style: TextStyle(fontSize: 13, color: statusColor, fontWeight: FontWeight.w500),
+                        title: Text(
+                          poll['title'],
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                         ),
-                      ],
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      // ส่งค่า isExpired ไปยัง Dialog เพื่อแสดงผลลัพธ์
-                      _showVoteDetailDialog(context, poll, hasVoted, isExpired);
-                    },
-                  ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text("ปิดโหวตเมื่อ: ${formatter.format(endDate)}",
+                              style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                            Text(statusText,
+                              style: TextStyle(fontSize: 13, color: statusColor, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          // เรียกใช้ฟังก์ชันเดิมของคุณ โดยส่งค่า Parameter ให้ครบตามที่กำหนดไว้
+                          _showVoteDetailDialog(context, poll, hasVoted, isExpired);
+                        },
+                      ),
+                    );
+                  },
                 );
               },
             );
@@ -554,6 +540,8 @@ class NotificationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("การแจ้งเตือน"),
@@ -561,63 +549,75 @@ class NotificationPage extends StatelessWidget {
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        // ดึงข้อมูลแจ้งเตือน เรียงจากใหม่ล่าสุด
-        stream: FirebaseFirestore.instance
-            .collection('notifications')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text("เกิดข้อผิดพลาด"));
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: FutureBuilder<DocumentSnapshot>(
+        // 1. ดึงข้อมูล User เพื่อหาค่า userCreatedAt
+        future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+        builder: (context, userSnapshot) {
+          if (!userSnapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-          if (snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text("ยังไม่มีการแจ้งเตือนในขณะนี้", style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            );
-          }
+          // ดึงค่า createdAt จากโปรไฟล์ผู้ใช้
+          Timestamp userCreatedAt = userSnapshot.data?['createdAt'] ?? Timestamp.now();
 
-          return ListView.builder(
-            itemCount: snapshot.data!.docs.length,
-            itemBuilder: (context, index) {
-              var note = snapshot.data!.docs[index];
-              DateTime time = (note['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+          return StreamBuilder<QuerySnapshot>(
+            // 2. กรองเฉพาะแจ้งเตือนที่ 'timestamp' >= userCreatedAt
+            stream: FirebaseFirestore.instance
+                .collection('notifications')
+                .where('timestamp', isGreaterThanOrEqualTo: userCreatedAt)
+                .orderBy('timestamp', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Center(child: Text("เกิดข้อผิดพลาด"));
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-              return Column(
-                children: [
-                  ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: _getIconColor(note['title']),
-                      child: Icon(_getIcon(note['title']), color: Colors.white, size: 20),
-                    ),
-                    title: Text(
-                      note['title'],
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(note['body']),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${time.day}/${time.month}/${time.year} ${time.hour}:${time.minute.toString().padLeft(2, '0')}",
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                    isThreeLine: true,
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text("ยังไม่มีการแจ้งเตือนในขณะนี้", style: TextStyle(color: Colors.grey)),
+                    ],
                   ),
-                  const Divider(height: 1),
-                ],
+                );
+              }
+
+              return ListView.builder(
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  var note = snapshot.data!.docs[index];
+                  DateTime time = (note['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: _getIconColor(note['title']),
+                          child: Icon(_getIcon(note['title']), color: Colors.white, size: 20),
+                        ),
+                        title: Text(
+                          note['title'],
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(note['body']),
+                            const SizedBox(height: 4),
+                            Text(
+                              "${time.day}/${time.month}/${time.year} ${time.hour}:${time.minute.toString().padLeft(2, '0')}",
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
+                      ),
+                      const Divider(height: 1),
+                    ],
+                  );
+                },
               );
             },
           );
@@ -626,14 +626,13 @@ class NotificationPage extends StatelessWidget {
     );
   }
 
-  // กำหนดไอคอนตามหัวข้อแจ้งเตือน
+  // ฟังก์ชันช่วยเหลือ (Helper Functions) เดิม
   IconData _getIcon(String title) {
     if (title.contains("การเงิน") || title.contains("ยอดเงิน")) return Icons.account_balance_wallet;
     if (title.contains("โหวต")) return Icons.how_to_vote;
     return Icons.notifications;
   }
 
-  // กำหนดสีตามหัวข้อแจ้งเตือน
   Color _getIconColor(String title) {
     if (title.contains("การเงิน")) return Colors.blue;
     if (title.contains("โหวต")) return Colors.orange;
@@ -646,6 +645,9 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ดึงข้อมูล User ปัจจุบันจาก Firebase Auth
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("โปรไฟล์"),
@@ -654,40 +656,68 @@ class ProfilePage extends StatelessWidget {
         elevation: 0.5,
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 1. รูป Icon Profile
-            const CircleAvatar(
-              radius: 60,
-              backgroundColor: Colors.black,
-              child: Icon(
-                Icons.person,
-                size: 80,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 60), // ระยะห่างระหว่างรูปกับปุ่ม
+        child: FutureBuilder<DocumentSnapshot>(
+          // ดึงข้อมูล Document ของ User คนนี้จากคอลเลกชัน 'users'
+          future: FirebaseFirestore.instance.collection('users').doc(user?.uid).get(),
+          builder: (context, snapshot) {
+            // จัดเตรียมชื่อที่จะแสดงผล (กรณีโหลดข้อมูลอยู่ หรือ ไม่มีข้อมูล)
+            String username = "กำลังโหลด...";
+            
+            if (snapshot.hasData && snapshot.data!.exists) {
+              var data = snapshot.data!.data() as Map<String, dynamic>;
+              username = data['username'] ?? "ไม่ระบุชื่อ";
+            } else if (snapshot.hasError) {
+              username = "เกิดข้อผิดพลาดในการโหลด";
+            }
 
-            // 2. ปุ่ม Logout
-            ElevatedButton.icon(
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                if (context.mounted) {
-                  // กลับไปหน้าแรก (Login) และล้าง Stack ทั้งหมด
-                  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-                }
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text("ออกจากระบบ"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 1. รูป Icon Profile
+                const CircleAvatar(
+                  radius: 60,
+                  backgroundColor: Colors.black,
+                  child: Icon(
+                    Icons.person,
+                    size: 80,
+                    color: Colors.white,
+                  ),
+                ),
+
+                const SizedBox(height: 20), // ระยะห่างระหว่าง Icon กับ ชื่อ
+
+                // --- แสดง Username ระหว่าง Icon กับ ปุ่ม ---
+                Text(
+                  username,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    color: Colors.black,
+                  ),
+                ),
+                
+                const SizedBox(height: 40), // ระยะห่างระหว่างชื่อกับปุ่ม Logout
+
+                // 2. ปุ่ม Logout
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    await FirebaseAuth.instance.signOut();
+                    if (context.mounted) {
+                      // กลับไปหน้าแรก (Login) และล้าง Stack ทั้งหมด
+                      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                    }
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text("ออกจากระบบ"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

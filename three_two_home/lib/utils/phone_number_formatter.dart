@@ -4,28 +4,34 @@ class PhoneNumberFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    var text = newValue.text;
-
-    // ลบตัวอักษรที่ไม่ใช่ตัวเลขออกก่อน
-    if (newValue.selection.baseOffset == 0) {
-      return newValue;
+    
+    // ถ้าฟิลด์ว่างเปล่า
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
     }
 
-    var buffer = StringBuffer();
-    for (int i = 0; i < text.length; i++) {
-      buffer.write(text[i]);
-      var nonZeroIndex = i + 1;
-      // ใส่ "-" ที่ตำแหน่งที่ 3 และ 6 (สำหรับรูปแบบ 000-000-0000)
-      if (nonZeroIndex % 3 == 0 && nonZeroIndex < 7 && nonZeroIndex != text.length) {
-        buffer.write('-');
-      } else if (nonZeroIndex == 6 && nonZeroIndex != text.length) {
+    // กรองเอาเฉพาะตัวเลข (ลบตัวอักษรอื่นหรือเครื่องหมาย - ที่ผู้ใช้อาจพิมพ์เข้ามา)
+    String digitsOnly = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+    
+    // จำกัดความยาวของตัวเลขไม่เกิน 10 หลัก
+    if (digitsOnly.length > 10) {
+      digitsOnly = digitsOnly.substring(0, 10);
+    }
+
+    final StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < digitsOnly.length; i++) {
+      buffer.write(digitsOnly[i]);
+      // ใส่ขีด (-) หลังจากตัวเลขตำแหน่งที่ 3 และ 6 (แต่ไม่ใส่ถ้าเป็นตัวสุดท้ายที่กำลังพิมพ์)
+      if ((i == 2 || i == 5) && i != digitsOnly.length - 1) {
         buffer.write('-');
       }
     }
 
-    var string = buffer.toString();
-    return newValue.copyWith(
-        text: string,
-        selection: TextSelection.collapsed(offset: string.length));
+    final String formattedText = buffer.toString();
+    return TextEditingValue(
+      text: formattedText,
+      // เลื่อนเคอร์เซอร์ไปไว้ตำแหน่งขวาสุดเสมอ
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
   }
 }
