@@ -1,42 +1,37 @@
+// Facade pattern — single entry point for all authentication operations
+// Singleton pattern — exactly one instance shared across the app
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../strategies/phone_formatting_strategy.dart';
 
 class AuthFacade {
+  AuthFacade._internal();
+  static final AuthFacade instance = AuthFacade._internal();
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // ฟังก์ชันกลางสำหรับแปลงเบอร์โทรศัพท์จาก 08... เป็น +668... เพื่อให้ตรงกับในฐานข้อมูล
-  String formatToE164(String phoneNumber) {
-    String cleanNumber = phoneNumber.replaceAll('-', '').trim();
-    if (cleanNumber.startsWith('0')) {
-      return '+66${cleanNumber.substring(1)}';
-    } else if (!cleanNumber.startsWith('+')) {
-      return '+66$cleanNumber';
-    }
-    return cleanNumber;
-  }
+  // Strategy pattern — swap formatting algorithm without changing callers
+  final PhoneFormattingStrategy _formatter = ThaiE164Strategy();
 
-  // ตรวจสอบว่ามีข้อมูลเบอร์โทรศัพท์นี้ในระบบนิติบุคคลหรือไม่
+  String formatToE164(String phoneNumber) => _formatter.format(phoneNumber);
+
   Future<bool> checkUserExists(String phoneNumber) async {
-    String formattedPhone = formatToE164(phoneNumber); // แปลงก่อนดึง
-    
+    final formattedPhone = formatToE164(phoneNumber);
     final snapshot = await _firestore
         .collection('users')
         .where('phone', isEqualTo: formattedPhone)
         .limit(1)
         .get();
-        
     return snapshot.docs.isNotEmpty;
   }
 
-  // ส่ง OTP
   Future<void> verifyPhoneNumber(
     String phoneNumber,
     Function(String) onCodeSent,
     Function(FirebaseAuthException) onError,
   ) async {
-    String formattedNumber = formatToE164(phoneNumber); // แปลงก่อนส่งไป Firebase Auth
-
+    final formattedNumber = formatToE164(phoneNumber);
     await _auth.verifyPhoneNumber(
       phoneNumber: formattedNumber,
       verificationCompleted: (PhoneAuthCredential credential) async {
@@ -50,16 +45,14 @@ class AuthFacade {
     );
   }
 
-  // ยืนยันรหัส OTP เพื่อเข้าสู่ระบบ
   Future<void> signInWithOTP(String verificationId, String smsCode) async {
-    PhoneAuthCredential credential = PhoneAuthProvider.credential(
+    final credential = PhoneAuthProvider.credential(
       verificationId: verificationId,
       smsCode: smsCode,
     );
     await _auth.signInWithCredential(credential);
   }
 
-  // ออกจากระบบ
   Future<void> signOut() async {
     await _auth.signOut();
   }
