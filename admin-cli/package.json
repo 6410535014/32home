@@ -1,0 +1,18 @@
+{
+  "dependencies": {
+    "csv-parse": "^6.2.1",
+    "firebase-admin": "^13.8.0"
+  },
+  "name": "admin-cli",
+  "version": "1.0.0",
+  "description": "",
+  "main": "update-balance.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
