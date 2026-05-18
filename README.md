@@ -76,5 +76,6 @@
 
 ## Presentation Slide
 [กลางภาค](https://canva.link/ti40gzfqkmat0sl)
+[ปลายภาค](https://canva.link/y1o60ux2ynenqvw)
 
 ---
