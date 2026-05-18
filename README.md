@@ -75,7 +75,7 @@
 [Facade และ Adapter pattern (หน้า login และ register)](./Assignment/facade%20&%20adapter%20pattern.pdf)
 
 ## Presentation Slide
-[กลางภาค](https://canva.link/ti40gzfqkmat0sl)
+[กลางภาค](https://canva.link/ti40gzfqkmat0sl)<br>
 [ปลายภาค](https://canva.link/y1o60ux2ynenqvw)
 
 ---
